@@ -1,0 +1,9 @@
+torch
+pandas
+numpy
+scikit-learn
+ta
+matplotlib
+seaborn
+pyspark
+requests

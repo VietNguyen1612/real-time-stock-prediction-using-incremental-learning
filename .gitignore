@@ -1,0 +1,30 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Data
+NASDAQ_*/
+*.zip
+
+# Output
+outputs
+
+# Generated docs (AI)
+paper.md
+paper.tex
+README.md
+topic.md
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+notebooks/
+
+# Claude
+.claude/
