@@ -22,7 +22,6 @@ final_requirements.md
 # Report/slides generation
 generate_report.py
 generate_slides.py
-report.docx
 slides.pptx
 
 # IDE / OS
