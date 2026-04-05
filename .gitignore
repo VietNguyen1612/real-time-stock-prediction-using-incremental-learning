@@ -10,11 +10,20 @@ NASDAQ_*/
 # Output
 outputs
 
-# Generated docs (AI)
+# Generated docs
 paper.md
 paper.tex
 README.md
 topic.md
+defense_answers.md
+defense_questions.md
+final_requirements.md
+
+# Report/slides generation
+generate_report.py
+generate_slides.py
+report.docx
+slides.pptx
 
 # IDE / OS
 .vscode/

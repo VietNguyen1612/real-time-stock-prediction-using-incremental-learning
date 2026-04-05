@@ -33,7 +33,7 @@ from src.config import (
     INCREMENTAL_SCHEDULE, INC_TEST_RATIO, TEST_YEAR, TEST_MONTH,
     LOOKBACK_WINDOW, FORECAST_HORIZON, BATCH_SIZE, DEVICE, OUTPUT_DIR,
 )
-from src.data.loader import load_months, load_monthly_csv
+from src.data.loader import load_months, load_monthly_csv, load_monthly_featured, load_months_featured
 from src.data.features import compute_features, create_sequences, normalize_data, scale_with_scaler, returns_to_prices
 from src.models.lstm_model import StockLSTM
 from src.models.trainer import BatchTrainer, IncrementalTrainer
@@ -69,11 +69,8 @@ def run_single_ticker(ticker: str) -> dict:
 
     # ── 1. Load & feature-engineer initial data ─────────────────────
     print(f"\n[1] Loading initial training data ({INITIAL_TRAIN_YEAR} Jan-May)...")
-    train_raw = load_months(ticker, INITIAL_TRAIN_MONTHS, year=INITIAL_TRAIN_YEAR)
-    val_raw = load_monthly_csv(ticker, VALIDATION_MONTH, year=INITIAL_TRAIN_YEAR)
-
-    train_feat = compute_features(train_raw)
-    val_feat = compute_features(val_raw)
+    train_feat = load_months_featured(ticker, INITIAL_TRAIN_MONTHS, year=INITIAL_TRAIN_YEAR)
+    val_feat = load_monthly_featured(ticker, VALIDATION_MONTH, year=INITIAL_TRAIN_YEAR)
 
     n_features = train_feat.shape[1]
     print(f"    Features: {n_features}, Train rows: {len(train_feat)}, Val rows: {len(val_feat)}")
@@ -131,8 +128,7 @@ def run_single_ticker(ticker: str) -> dict:
     baseline_model_state = copy.deepcopy(model.state_dict())
 
     # Prepare forgetting test data (use Jan 2022 data)
-    jan_raw = load_monthly_csv(ticker, "01", year=INITIAL_TRAIN_YEAR)
-    jan_feat = compute_features(jan_raw)
+    jan_feat = load_monthly_featured(ticker, "01", year=INITIAL_TRAIN_YEAR)
     jan_scaled = scale_with_scaler(scaler, jan_feat)
     X_jan, y_jan, ref_jan = create_sequences(jan_scaled, LOOKBACK_WINDOW, FORECAST_HORIZON)
 
@@ -153,8 +149,7 @@ def run_single_ticker(ticker: str) -> dict:
         print(f"\n  --- {label} ---")
 
         # Load and process month data
-        month_raw = load_monthly_csv(ticker, month, year=year)
-        month_feat = compute_features(month_raw)
+        month_feat = load_monthly_featured(ticker, month, year=year)
 
         # Refit scaler with all data seen so far (expanding window)
         all_feat_seen = pd.concat([all_feat_seen, month_feat])
@@ -242,8 +237,7 @@ def run_single_ticker(ticker: str) -> dict:
 
     # Plot predictions on last incremental month (2025-11)
     last_year, last_month = INCREMENTAL_SCHEDULE[-1]
-    last_raw = load_monthly_csv(ticker, last_month, year=last_year)
-    last_feat = compute_features(last_raw)
+    last_feat = load_monthly_featured(ticker, last_month, year=last_year)
     last_scaled = scale_with_scaler(scaler, last_feat)
     X_last, y_last, ref_last = create_sequences(last_scaled, LOOKBACK_WINDOW, FORECAST_HORIZON)
     y_last_pred = predict_inv(model, X_last, y_scaler)
@@ -251,8 +245,7 @@ def run_single_ticker(ticker: str) -> dict:
 
     # ── 10. Final test on 2025 Dec (completely unseen) ──────────────
     print(f"\n[10] Final test on {TEST_YEAR}-{TEST_MONTH} (never seen during training)...")
-    test_raw = load_monthly_csv(ticker, TEST_MONTH, year=TEST_YEAR)
-    test_feat = compute_features(test_raw)
+    test_feat = load_monthly_featured(ticker, TEST_MONTH, year=TEST_YEAR)
     test_scaled = scale_with_scaler(scaler, test_feat)
     X_test, y_test, ref_test = create_sequences(test_scaled, LOOKBACK_WINDOW, FORECAST_HORIZON)
     print(f"    Test samples: {len(X_test)}")

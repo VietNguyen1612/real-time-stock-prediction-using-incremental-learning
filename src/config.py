@@ -7,6 +7,11 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, "NASDAQ_2022")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
 
+# ── Spark / Big Data ────────────────────────────────────────────────────────
+PARQUET_DIR = os.path.join(PROJECT_ROOT, "outputs", "spark_features")
+DATA_YEARS = [2022, 2023, 2024, 2025]
+USE_SPARK_FEATURES = True  # True = read Spark Parquet, False = legacy CSV + ta
+
 # ── Tickers ──────────────────────────────────────────────────────────────────
 TICKERS = ["AAPL", "AMZN", "BRK-B", "GOOGL", "META", "MSFT", "NVDA", "TSLA"]
 
@@ -66,7 +71,6 @@ INCREMENTAL_LR = 1e-4
 EWC_LAMBDA = 0.4
 REPLAY_ALPHA = 0.2       # weight for replay loss
 REPLAY_RATIO = 0.1       # fraction of initial data kept in replay buffer
-REPLAY_MIX = 0.2         # 20% replay, 80% new data in each batch
 
 # ── Device ───────────────────────────────────────────────────────────────────
 import torch

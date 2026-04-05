@@ -6,4 +6,5 @@ ta
 matplotlib
 seaborn
 pyspark
+pyarrow
 requests

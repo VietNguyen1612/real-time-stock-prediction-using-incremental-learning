@@ -30,7 +30,7 @@ from src.config import (
     LOOKBACK_WINDOW, FORECAST_HORIZON, BATCH_SIZE, DEVICE, OUTPUT_DIR,
     EWC_LAMBDA, REPLAY_ALPHA,
 )
-from src.data.loader import load_months, load_monthly_csv
+from src.data.loader import load_months, load_monthly_csv, load_monthly_featured, load_months_featured
 from src.data.features import compute_features, create_sequences, normalize_data, scale_with_scaler, returns_to_prices
 from src.models.lstm_model import StockLSTM
 from src.models.trainer import BatchTrainer, IncrementalTrainer
@@ -55,9 +55,8 @@ def predict(model, X):
 
 
 def load_and_prepare(ticker, month, year, scaler):
-    """Load a month's data, compute features, scale, create sequences."""
-    raw = load_monthly_csv(ticker, month, year=year)
-    feat = compute_features(raw)
+    """Load a month's data with features, scale, create sequences."""
+    feat = load_monthly_featured(ticker, month, year=year)
     scaled = scale_with_scaler(scaler, feat)
     X, y, ref = create_sequences(scaled, LOOKBACK_WINDOW, FORECAST_HORIZON)
     return X, y, ref
@@ -219,11 +218,8 @@ def run_ticker_study(ticker: str) -> dict:
 
     # ── 1. Load & prepare initial data (2022 Jan-May train, Jun val) ──
     print("\n[1] Loading initial data (2022 Jan-May + Jun)...")
-    train_raw = load_months(ticker, INITIAL_TRAIN_MONTHS, year=2022)
-    val_raw = load_monthly_csv(ticker, VALIDATION_MONTH, year=2022)
-
-    train_feat = compute_features(train_raw)
-    val_feat = compute_features(val_raw)
+    train_feat = load_months_featured(ticker, INITIAL_TRAIN_MONTHS, year=2022)
+    val_feat = load_monthly_featured(ticker, VALIDATION_MONTH, year=2022)
     n_features = train_feat.shape[1]
 
     train_scaled, val_scaled, scaler = normalize_data(train_feat, val_feat)
