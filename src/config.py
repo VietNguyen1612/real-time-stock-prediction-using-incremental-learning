@@ -7,46 +7,48 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, "NASDAQ_2022")
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
 
-# ── Spark / Big Data ────────────────────────────────────────────────────────
-PARQUET_DIR = os.path.join(PROJECT_ROOT, "outputs", "spark_features")
-DATA_YEARS = [2022, 2023, 2024, 2025]
-USE_SPARK_FEATURES = True  # True = read Spark Parquet, False = legacy CSV + ta
-
 # ── Tickers ──────────────────────────────────────────────────────────────────
 TICKERS = ["AAPL", "AMZN", "BRK-B", "GOOGL", "META", "MSFT", "NVDA", "TSLA"]
 
-# ── Data split ──────────────────────────────────────────────────────────────
+# ── Phase 1: Offline base training (static 6-month block of 2022) ───────────
+# The base LSTM is trained once, offline, on a fixed 6-month block of 2022.
+# Internally that block is split into 5 training months + 1 validation month.
 INITIAL_TRAIN_YEAR = 2022
-INITIAL_TRAIN_MONTHS = ["01", "02", "03", "04", "05"]  # 2022 Jan-May batch train
-VALIDATION_MONTH = "06"                                  # 2022 Jun validation
+INITIAL_TRAIN_MONTHS = ["01", "02", "03", "04", "05"]  # 2022 Jan-May (train)
+VALIDATION_MONTH = "06"                                  # 2022 Jun (validation)
+PHASE1_YEAR = INITIAL_TRAIN_YEAR
+PHASE1_MONTHS = INITIAL_TRAIN_MONTHS + [VALIDATION_MONTH]  # full Jan-Jun block
 
-# ── Incremental learning schedule ───────────────────────────────────────────
-# 2022 Jul-Dec → 2023 full → 2024 full → 2025 Jan-Nov = 41 months
+# ── Phase 2: Tick-based retraining (subsequent 6 months of 2022) ────────────
+# After the offline base model is trained, the system streams the next
+# 6 months of 2022 (Jul-Dec) and retrains on every "tick". A tick is defined
+# precisely as every 15 minutes — i.e. each new 15-min OHLCV bar produces one
+# new sliding-window sequence that triggers a single incremental update.
 ALL_MONTHS = [f"{m:02d}" for m in range(1, 13)]
-INC_TEST_RATIO = 0.2  # hold out 20% of each incremental month for testing
+PHASE2_YEAR = 2022
+PHASE2_MONTHS = ["07", "08", "09", "10", "11", "12"]  # 2022 Jul-Dec
 
-def build_incremental_schedule():
-    """Build list of (year, month) for incremental learning."""
-    schedule = []
-    # 2022 Jul-Dec
-    for m in ["07", "08", "09", "10", "11", "12"]:
-        schedule.append((2022, m))
-    # 2023 full year
-    for m in ALL_MONTHS:
-        schedule.append((2023, m))
-    # 2024 full year
-    for m in ALL_MONTHS:
-        schedule.append((2024, m))
-    # 2025 Jan-Nov (learn)
-    for m in [f"{i:02d}" for i in range(1, 12)]:
-        schedule.append((2025, m))
-    return schedule
+TICK_INTERVAL_MINUTES = 15   # one tick == one 15-min bar
+BARS_PER_TICK = 1            # bars consumed per tick (data cadence is 15 min)
+TICK_EPOCHS = 1              # gradient passes per tick (online retraining)
+EWC_REFRESH_EVERY = 26       # refresh Fisher every N ticks (26 bars ≈ 1 day)
 
-INCREMENTAL_SCHEDULE = build_incremental_schedule()
+
+def build_tick_schedule():
+    """Build the list of (year, month) blocks streamed during Phase 2.
+
+    The actual retraining cadence is per-tick (every 15 minutes); this only
+    enumerates which monthly data blocks make up the Phase 2 stream.
+    """
+    return [(PHASE2_YEAR, m) for m in PHASE2_MONTHS]
+
+
+PHASE2_SCHEDULE = build_tick_schedule()
 
 # ── Final unseen test ───────────────────────────────────────────────────────
-TEST_YEAR = 2025
-TEST_MONTH = "12"  # 2025 Dec — never seen during any training
+# Held-out month used by the classic-ML (sklearn) baselines for comparison.
+TEST_YEAR = 2022
+TEST_MONTH = "12"  # 2022 Dec — last month of the Phase 2 stream
 
 # ── Sliding window ───────────────────────────────────────────────────────────
 LOOKBACK_WINDOW = 78   # 78 bars × 15 min = 3 trading days of context

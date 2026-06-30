@@ -5,6 +5,3 @@ scikit-learn
 ta
 matplotlib
 seaborn
-pyspark
-pyarrow
-requests

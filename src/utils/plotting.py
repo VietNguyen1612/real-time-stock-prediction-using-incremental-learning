@@ -95,7 +95,6 @@ def plot_predictions(y_true_diff, y_pred_diff, ticker, title_suffix="", save=Tru
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_predictions{title_suffix.replace(' ', '_')}.png"),
                     dpi=150, bbox_inches="tight")
-    plt.show()
     plt.close(fig)
 
 
@@ -116,30 +115,34 @@ def plot_metrics_over_months(metrics_df: pd.DataFrame, ticker: str, save=True):
     plt.tight_layout()
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_metrics_over_months.png"), dpi=150, bbox_inches="tight")
-    plt.show()
     plt.close(fig)
 
 
-def plot_training_time_comparison(batch_time, incremental_times, ticker, save=True):
-    """Bar chart comparing batch training time vs incremental update times."""
+def plot_training_time_comparison(phase1_time, phase2_time, retrain_time, ticker, save=True):
+    """Bar chart: incremental cost (Phase 1 base + Phase 2 ticks) vs full retrain.
+
+    Args:
+        phase1_time: offline base training time (seconds)
+        phase2_time: total Phase 2 tick-retraining time (seconds)
+        retrain_time: time to batch-retrain from scratch on all data (baseline)
+    """
     fig, ax = plt.subplots(figsize=(12, 5))
-    # Show batch as single bar, then average incremental time + total
-    categories = ["Batch\n(initial)", "Avg incremental\n(per month)", "Total incremental\n(all months)"]
-    avg_inc = np.mean(incremental_times) if incremental_times else 0
-    total_inc = sum(incremental_times)
-    values = [batch_time, avg_inc, total_inc]
+    categories = ["Phase 1\n(offline base)", "Phase 2\n(tick retraining)",
+                  "Full retrain\n(baseline)"]
+    values = [phase1_time, phase2_time, retrain_time]
     colors = ["#4C72B0", "#55A868", "#DD8452"]
     bars = ax.bar(categories, values, color=colors)
-    # Add value labels on bars
     for bar, val in zip(bars, values):
         ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1,
                 f"{val:.1f}s", ha="center", va="bottom", fontsize=10)
-    ax.set_title(f"{ticker} — Training time: Batch vs Incremental ({len(incremental_times)} months)")
+    inc_total = phase1_time + phase2_time
+    speedup = retrain_time / inc_total if inc_total > 0 else float("nan")
+    ax.set_title(f"{ticker} — Training time: incremental vs full retrain "
+                 f"(speedup {speedup:.2f}x)")
     ax.set_ylabel("Time (seconds)")
     plt.tight_layout()
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_training_time.png"), dpi=150)
-    plt.show()
     plt.close(fig)
 
 
@@ -171,7 +174,6 @@ def plot_forgetting_analysis(forgetting_metrics: list[dict], ticker: str, save=T
     plt.tight_layout()
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_forgetting.png"), dpi=150, bbox_inches="tight")
-    plt.show()
     plt.close(fig)
 
 
@@ -208,7 +210,6 @@ def plot_ablation_comparison(ablation_results: dict, ticker: str, save=True):
     plt.tight_layout()
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_ablation_comparison.png"), dpi=150)
-    plt.show()
     plt.close(fig)
 
 
@@ -236,7 +237,6 @@ def plot_ablation_forgetting(ablation_forgetting: dict, ticker: str, save=True):
     plt.tight_layout()
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_ablation_forgetting.png"), dpi=150)
-    plt.show()
     plt.close(fig)
 
 
@@ -255,7 +255,6 @@ def plot_forgetting_heatmap(heatmap_data: pd.DataFrame, ticker: str, save=True):
     plt.tight_layout()
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_forgetting_heatmap.png"), dpi=150)
-    plt.show()
     plt.close(fig)
 
 
@@ -272,5 +271,4 @@ def plot_loss_curves(history: dict, ticker: str, title_suffix="", save=True):
     plt.tight_layout()
     if save:
         fig.savefig(os.path.join(OUTPUT_DIR, f"{ticker}_loss{title_suffix.replace(' ', '_')}.png"), dpi=150)
-    plt.show()
     plt.close(fig)

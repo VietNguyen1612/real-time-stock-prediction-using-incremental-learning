@@ -1,5 +1,16 @@
 # How to Run This Project
 
+A two-phase stock-prediction pipeline on 2022 NASDAQ 15-min data:
+
+- **Phase 1 — Offline base training:** an LSTM is trained once, offline, on a
+  static 6-month block of 2022 (Jan–Jun).
+- **Phase 2 — Tick-based retraining:** the next 6 months (Jul–Dec 2022) are
+  streamed and the model is retrained on **every tick**, where a tick is
+  defined precisely as every **15 minutes** (one new bar → one update).
+
+Forgetting is mitigated with **EWC + Experience Replay**. See `README.md` for
+architecture and the full project structure.
+
 ## 1. Clone & Setup Environment
 
 ```bash
@@ -12,82 +23,84 @@ pip install -r requirements.txt
 
 ## 2. Prepare Data
 
-The project expects NASDAQ 15-min intraday CSVs in `NASDAQ_YYYY/` folders (2022-2025).
-
-**Option A** — Use the existing 2022 zip:
+The pipeline runs on the 2022 NASDAQ 15-min intraday CSVs in `NASDAQ_2022/`.
 
 ```bash
 unzip stock_data_NASDAQ_2022-*.zip -d NASDAQ_2022/
 ```
 
-**Option B** — Fetch from AlphaVantage API (for 2023, 2024, 2025):
+Technical-indicator features are computed on the fly from the raw CSVs when the
+experiments run — there is no separate preprocessing step.
 
-```bash
-# Get a free API key from https://www.alphavantage.co/support/#api-key
-python -m src.data.fetch_alphavantage --api_key YOUR_KEY --year 2023
-python -m src.data.fetch_alphavantage --api_key YOUR_KEY --year 2024
-python -m src.data.fetch_alphavantage --api_key YOUR_KEY --year 2025
-```
-
-## 3. (Optional) PySpark Preprocessing
-
-```bash
-python -m src.data.spark_preprocess
-```
-
-This loads all CSVs into Spark, computes aggregate stats, and writes Parquet files. Demonstrates the Big Data pipeline component.
-
-## 4. Run Main Experiment
+## 3. Run the Main Experiment (two-phase pipeline)
 
 ```bash
 # All 8 tickers (AAPL, AMZN, BRK-B, GOOGL, META, MSFT, NVDA, TSLA)
 python -m experiments.run_experiment
 
-# Or a single ticker
+# Single ticker
 python -m experiments.run_experiment --ticker AAPL
+
+# Quick run: cap the number of Phase 2 ticks
+python -m experiments.run_experiment --ticker AAPL --max-ticks 500
 ```
 
 **What it does:**
 
-- Batch trains LSTM on 2022 Jan-May
-- Validates on 2022 Jun (early stopping)
-- Incrementally updates (EWC + Replay) from 2022 Jul through 2025 Nov
-- Tests on 2025 Dec (unseen)
-- Saves plots and metrics to `outputs/`
+1. **Phase 1 (offline base training):** batch-trains the LSTM on 2022 Jan–May
+   (200 epochs, early stopping), validates on 2022 Jun.
+2. **Phase 2 (tick-based retraining):** streams 2022 Jul–Dec and retrains on
+   every tick (1 tick = 15 min = 1 new bar). Each tick is evaluated
+   prequentially (predict-then-train) with EWC + Replay.
+3. **Baseline:** batch-retrains the LSTM from scratch on all of 2022 to compare
+   accuracy and training time (speedup) against the incremental approach.
 
-## 5. Run Incremental Learning Study
+## 4. Run the Incremental Learning Study (ablation)
 
 ```bash
 python -m experiments.run_incremental_study
 python -m experiments.run_incremental_study --ticker AAPL
+python -m experiments.run_incremental_study --ticker AAPL --max-ticks 100   # quick
 ```
 
-**What it does:**
+**What it does:** runs the Phase 2 tick stream four times — Fine-tune vs
+EWC-only vs Replay-only vs EWC+Replay — and produces ablation comparison plots
+and a forgetting heatmap over past months.
 
-- Ablation study: Fine-tune vs EWC-only vs Replay-only vs EWC+Replay
-- Forgetting heatmap analysis
-- Saves comparison plots to `outputs/`
-
-## 6. Real-Time Prediction
+## 5. Run the Classic-ML Baselines
 
 ```bash
-# Backtest on recent historical data
-python predict_realtime.py --ticker AAPL --api_key YOUR_KEY
-
-# Live forward prediction (every 15 min for 3 hours)
-python predict_realtime.py --ticker AAPL --api_key YOUR_KEY --live --duration 180
+python -m src.models.sklearn_baseline
+python -m src.models.sklearn_baseline --ticker AAPL
 ```
 
-Requires a trained model (`outputs/AAPL_incremental_model.pt`) from step 4.
+Trains scikit-learn LinearRegression + RandomForest on the same temporal split
+and target as the LSTM, for a "classic ML vs deep learning" comparison.
 
-## 7. Outputs
+## 6. Outputs
 
-All results go to `outputs/`:
+Everything is written to `outputs/`.
 
-- `*_lossbatch.png` — training loss curves
-- `*_predictionsbatch_val.png` — validation predictions
-- `*_predictionsinc_*.png` — incremental predictions
-- `*_forgetting.png` — forgetting analysis
-- `*_metrics_over_months.png` — metrics over time
-- `*_training_time.png` — training time comparison
-- `experiment_summary.csv` — metrics summary table
+**Summary tables (CSV)**
+
+| File | From |
+|------|------|
+| `experiment_summary.csv` | main experiment (per ticker) |
+| `incremental_study_summary.csv` | ablation study (per ticker × method) |
+| `baseline_summary.csv` | classic-ML baselines (per ticker × model) |
+
+**Saved models / scalers (per ticker)**
+
+- `{TICKER}_incremental_model.pt` — trained LSTM weights
+- `{TICKER}_feature_scaler.pkl`, `{TICKER}_y_scaler.pkl` — frozen scalers
+
+**Plots (per ticker, PNG)**
+
+- `{TICKER}_lossbatch.png` — Phase 1 training loss curve
+- `{TICKER}_predictionsbatch_val.png` — Phase 1 validation predictions
+- `{TICKER}_predictionsphase2_ticks.png` — Phase 2 prequential predictions
+- `{TICKER}_metrics_over_months.png` — Phase 2 metrics aggregated per month
+- `{TICKER}_forgetting.png` — accuracy on Jan 2022 before vs after Phase 2
+- `{TICKER}_training_time.png` — incremental vs full-retrain training time
+- `{TICKER}_ablation_comparison.png`, `{TICKER}_ablation_forgetting.png`,
+  `{TICKER}_forgetting_heatmap.png` — from the ablation study

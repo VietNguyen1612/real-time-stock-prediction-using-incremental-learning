@@ -118,8 +118,17 @@ class IncrementalTrainer:
         self,
         X_new: np.ndarray, y_new: np.ndarray,
         epochs: int = INCREMENTAL_EPOCHS,
+        refresh_ewc: bool = True,
+        update_replay: bool = True,
     ) -> dict:
-        """Incrementally update on new month data. Returns history."""
+        """Incrementally update on new data. Returns history.
+
+        Args:
+            refresh_ewc: recompute the Fisher matrix after this update. For
+                per-tick streaming this is expensive, so callers may refresh
+                only periodically (see ``EWC_REFRESH_EVERY``).
+            update_replay: add the new samples to the replay buffer.
+        """
         new_ds = TensorDataset(
             torch.tensor(X_new, device=DEVICE),
             torch.tensor(y_new, device=DEVICE),
@@ -170,9 +179,11 @@ class IncrementalTrainer:
         history["total_time"] = time.time() - start
 
         # Update EWC Fisher matrix with new data
-        self.ewc.update(self.model, new_loader)
+        if refresh_ewc:
+            self.ewc.update(self.model, new_loader)
 
         # Add new data to replay buffer
-        self.replay_buffer.add(X_new, y_new)
+        if update_replay:
+            self.replay_buffer.add(X_new, y_new)
 
         return history

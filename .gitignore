@@ -3,17 +3,18 @@
 __pycache__/
 *.pyc
 
-# Data
-NASDAQ_*/
+# Data — only 2022 is committed; other years are local-only
+/NASDAQ_2023/
+/NASDAQ_2024/
+/NASDAQ_2025/
 *.zip
 
 # Output
 outputs
 
-# Generated docs
+# Generated/aux docs (not part of the codebase)
 paper.md
 paper.tex
-README.md
 topic.md
 defense_answers.md
 defense_questions.md
